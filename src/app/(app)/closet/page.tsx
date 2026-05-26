@@ -41,7 +41,17 @@ export default async function ClosetPage({
     ? query.eq("is_archived", true)
     : query.eq("is_archived", false);
 
-  if (sp.q) query = query.ilike("name", `%${sp.q}%`);
+  if (sp.q) {
+    // Search across name, brand, subcategory, color, category, tags, notes via the
+    // search_text generated column. Normalize the query the same way (lower, strip
+    // non-alphanumeric) so "tshirt" matches "t-shirt" and "hat" matches items with
+    // category=hat even if named "baseball cap". Multi-word = all words must match.
+    const normalized = sp.q.toLowerCase().replace(/[^a-z0-9\s]/gi, " ");
+    const words = normalized.split(/\s+/).filter(w => w.length > 0);
+    for (const word of words) {
+      query = query.ilike("search_text", `%${word}%`);
+    }
+  }
   if (sp.status) {
     if (sp.status === "underworn") query = query.in("status", ["new", "light"]);
     else query = query.eq("status", sp.status as WearStatus);

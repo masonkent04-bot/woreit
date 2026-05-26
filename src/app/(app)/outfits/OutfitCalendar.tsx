@@ -15,18 +15,18 @@ interface OutfitRow {
 }
 
 // Month-grid calendar of outfit logs.
-// Click a date with outfits → expand to show them; click empty date → quick-log link.
+// Receives monthKey as 'YYYY-MM' (no Date round-trip → no TZ shift bug).
 export default function OutfitCalendar({
-  monthStart,
+  monthKey,
   outfits,
 }: {
-  monthStart: string;
+  monthKey: string;
   outfits: OutfitRow[];
 }) {
   const router = useRouter();
-  const start = new Date(monthStart);
-  const year = start.getFullYear();
-  const month = start.getMonth();
+  const [yearStr, monStr] = monthKey.split("-");
+  const year = Number(yearStr);
+  const month = Number(monStr) - 1; // 0-based
   const today = new Date();
   const todayKey = ymdKey(today);
 
@@ -48,8 +48,12 @@ export default function OutfitCalendar({
   while (cells.length % 7) cells.push(null);
 
   function navMonth(delta: number) {
-    const next = new Date(year, month + delta, 1);
-    const monthParam = `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, "0")}`;
+    // Pure integer math — no Date object, no TZ to worry about.
+    let m = month + delta;
+    let y = year;
+    while (m < 0) { m += 12; y -= 1; }
+    while (m > 11) { m -= 12; y += 1; }
+    const monthParam = `${y}-${String(m + 1).padStart(2, "0")}`;
     router.push(`/outfits?view=calendar&month=${monthParam}`);
   }
 
@@ -67,7 +71,7 @@ export default function OutfitCalendar({
           <ChevronLeft size={18} />
         </button>
         <h2 className="font-medium">
-          {start.toLocaleDateString(undefined, { month: "long", year: "numeric" })}
+          {new Date(year, month, 1).toLocaleDateString(undefined, { month: "long", year: "numeric" })}
         </h2>
         <button
           onClick={() => navMonth(1)}

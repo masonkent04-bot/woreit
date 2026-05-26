@@ -27,12 +27,15 @@ export default async function OutfitsPage({
   const { data: { user } } = await supabase.auth.getUser();
 
   // For calendar view, fetch the visible month; for list, fetch recent 60.
-  // Default month is current.
+  // Use YYYY-MM string (timezone-free) — avoids Date round-trip bugs where
+  // a server-side UTC date gets parsed in client-local TZ and silently shifts months.
   const now = new Date();
-  const monthStart = sp.month
-    ? new Date(`${sp.month}-01T00:00:00`)
-    : new Date(now.getFullYear(), now.getMonth(), 1);
-  const monthEnd = new Date(monthStart.getFullYear(), monthStart.getMonth() + 1, 1);
+  const monthKey = sp.month ?? `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  const [yearStr, monStr] = monthKey.split("-");
+  const year = Number(yearStr);
+  const monIdx = Number(monStr) - 1; // 0-based
+  const monthStart = new Date(year, monIdx, 1);
+  const monthEnd = new Date(year, monIdx + 1, 1);
 
   let query = supabase
     .from("outfits")
@@ -70,7 +73,7 @@ export default async function OutfitsPage({
 
       {view === "calendar" ? (
         <OutfitCalendar
-          monthStart={monthStart.toISOString()}
+          monthKey={monthKey}
           outfits={outfits}
         />
       ) : outfits.length === 0 ? (
