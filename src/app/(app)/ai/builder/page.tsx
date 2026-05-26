@@ -12,6 +12,16 @@ interface AISuggestion {
   name: string;
   item_ids: string[];
   reasoning: string;
+  wishlist_ids?: string[];
+}
+
+interface WishlistItem {
+  id: string;
+  name: string;
+  photo_path: string | null;
+  photo_url: string | null;
+  link_url: string | null;
+  price: number | null;
 }
 
 export default function OutfitBuilderPage() {
@@ -21,6 +31,8 @@ export default function OutfitBuilderPage() {
   const [occasion, setOccasion] = useState<string>("casual");
   const [weather, setWeather] = useState<string>("");
   const [loadingWeather, setLoadingWeather] = useState(false);
+  const [includeWishlist, setIncludeWishlist] = useState(false);
+  const [wishlistById, setWishlistById] = useState<Map<string, WishlistItem>>(new Map());
   const [suggestions, setSuggestions] = useState<AISuggestion[]>([]);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -41,6 +53,15 @@ export default function OutfitBuilderPage() {
       items.forEach(i => map.set(i.id, i));
       setItemsById(map);
       setHasItems(items.length > 0);
+
+      // Also fetch wishlist for rendering wishlist items in results
+      const { data: wishes } = await supabase
+        .from("wishlist_items")
+        .select("id, name, photo_path, photo_url, link_url, price")
+        .eq("owner_id", user.id);
+      const wmap = new Map<string, WishlistItem>();
+      (wishes ?? []).forEach(w => wmap.set(w.id, w as WishlistItem));
+      setWishlistById(wmap);
     })();
   }, [supabase]);
 
@@ -83,6 +104,7 @@ export default function OutfitBuilderPage() {
           occasion,
           weather: weather || undefined,
           count: 3,
+          include_wishlist: includeWishlist,
         }),
       });
       const json = await res.json();
@@ -160,6 +182,23 @@ export default function OutfitBuilderPage() {
           />
         </div>
 
+        {wishlistById.size > 0 && (
+          <label className="flex items-center gap-2 cursor-pointer pt-2">
+            <input
+              type="checkbox"
+              checked={includeWishlist}
+              onChange={(e) => setIncludeWishlist(e.target.checked)}
+              className="w-4 h-4"
+            />
+            <span className="text-sm">
+              <span className="font-medium">Include wishlist items</span>
+              <span className="text-muted ml-1 text-xs">
+                ({wishlistById.size} item{wishlistById.size === 1 ? "" : "s"})
+              </span>
+            </span>
+          </label>
+        )}
+
         <button
           onClick={build}
           disabled={loading || !hasItems}
@@ -181,7 +220,8 @@ export default function OutfitBuilderPage() {
       {suggestions.length > 0 && (
         <div className="space-y-4">
           {suggestions.map((s, idx) => {
-            const items = s.item_ids.map(id => itemsById.get(id)).filter((x): x is ClosetItem => !!x);
+            const wishIds = new Set(s.wishlist_ids ?? []);
+            const hasWishItems = wishIds.size > 0;
             return (
               <div key={idx} className="card p-4 space-y-3">
                 <div>
@@ -192,31 +232,50 @@ export default function OutfitBuilderPage() {
                 </div>
 
                 <div className="grid grid-cols-3 gap-2">
-                  {items.map(it => {
-                    const url = it.photo_path
-                      ? `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/item-photos/${it.photo_path}?width=300&height=300&resize=cover&quality=80`
-                      : null;
+                  {s.item_ids.map(id => {
+                    const closetItem = itemsById.get(id);
+                    const wishItem = wishlistById.get(id);
+                    const item = closetItem ?? wishItem;
+                    if (!item) return null;
+                    const isWish = wishIds.has(id);
+                    const photoPath = (item as ClosetItem).photo_path;
+                    const url = photoPath
+                      ? `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/item-photos/${photoPath}?width=300&height=300&resize=cover&quality=80`
+                      : isWish ? (item as WishlistItem).photo_url : null;
                     return (
-                      <Link key={it.id} href={`/closet/${it.id}`}>
+                      <Link key={id} href={isWish ? `/wishlist/${id}` : `/closet/${id}`}>
                         <div className="relative aspect-square rounded-2xl border border-border overflow-hidden bg-background">
                           {url ? (
-                            <Image src={url} alt={it.name} fill sizes="33vw" className="object-cover" />
+                            <Image src={url} alt={item.name} fill sizes="33vw" className="object-cover" />
                           ) : (
-                            <div className="absolute inset-0 flex items-center justify-center text-2xl">👕</div>
+                            <div className="absolute inset-0 flex items-center justify-center text-2xl">
+                              {isWish ? "💭" : "👕"}
+                            </div>
+                          )}
+                          {isWish && (
+                            <span className="absolute top-1 right-1 text-[8px] font-semibold tracking-wider px-1.5 py-0.5 rounded-full bg-warn text-background">
+                              WISH
+                            </span>
                           )}
                         </div>
-                        <p className="text-[10px] mt-1 truncate text-center">{it.name}</p>
+                        <p className="text-[10px] mt-1 truncate text-center">{item.name}</p>
                       </Link>
                     );
                   })}
                 </div>
 
-                <button
-                  onClick={() => logIt(s)}
-                  className="w-full h-10 rounded-full border border-border text-sm font-medium"
-                >
-                  Wear this today
-                </button>
+                {hasWishItems ? (
+                  <p className="text-[10px] text-muted text-center">
+                    Includes wishlist items — buy them first to wear this outfit
+                  </p>
+                ) : (
+                  <button
+                    onClick={() => logIt({ ...s, item_ids: s.item_ids.filter(id => itemsById.has(id)) })}
+                    className="w-full h-10 rounded-full border border-border text-sm font-medium"
+                  >
+                    Wear this today
+                  </button>
+                )}
               </div>
             );
           })}

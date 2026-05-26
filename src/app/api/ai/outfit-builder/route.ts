@@ -11,6 +11,7 @@ const Body = z.object({
   occasion: z.string().optional(),
   weather: z.string().optional(),
   count: z.number().min(1).max(5).default(2),
+  include_wishlist: z.boolean().default(false),
 });
 
 interface CompactItem {
@@ -26,6 +27,7 @@ interface CompactItem {
   occasion_tags: string[];
   season_tags: string[];
   is_laundry: boolean;
+  is_wishlist?: boolean;
 }
 
 function buildSystemPrompt(opts: {
@@ -129,6 +131,35 @@ export async function POST(req: Request) {
     is_laundry: i.is_laundry,
   }));
 
+  // Optionally fold in wishlist items as hypothetical additions.
+  // Marked with is_wishlist so the AI knows they're aspirational, and we
+  // can render a WISH badge on the result.
+  if (parsed.data.include_wishlist) {
+    const { data: wishes } = await supabase
+      .from("wishlist_items")
+      .select("id, name, notes")
+      .eq("owner_id", user.id);
+    if (wishes) {
+      for (const w of wishes) {
+        compact.push({
+          id: w.id,
+          name: w.name,
+          category: "other", // wishlist items have no category yet
+          subcategory: null,
+          color: null,
+          scope: "personal",
+          status: "new",
+          wear_count: 0,
+          style_tags: [],
+          occasion_tags: [],
+          season_tags: [],
+          is_laundry: false,
+          is_wishlist: true,
+        });
+      }
+    }
+  }
+
   const systemPrompt = buildSystemPrompt({
     displayName: profile?.display_name ?? "the user",
     prefersModest: !!profile?.prefers_modest,
@@ -173,7 +204,14 @@ export async function POST(req: Request) {
       );
     }
 
-    return NextResponse.json({ outfits: safe });
+    // Mark which item_ids are wishlist (for UI badge)
+    const wishIds = new Set(compact.filter(c => c.is_wishlist).map(c => c.id));
+    const annotated = safe.map(o => ({
+      ...o,
+      wishlist_ids: o.item_ids.filter(id => wishIds.has(id)),
+    }));
+
+    return NextResponse.json({ outfits: annotated });
   } catch (e) {
     const message = e instanceof Error ? e.message : "AI request failed";
     return NextResponse.json({ error: message }, { status: 500 });
