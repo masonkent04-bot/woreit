@@ -35,6 +35,9 @@ export default function NewItemPage() {
   const [occasionTags, setOccasionTags] = useState<string[]>([]);
   const [seasonTags, setSeasonTags] = useState<string[]>([]);
   const [notes, setNotes] = useState("");
+  // Wear-history seed: lets users initially categorize items they already own.
+  // Maps to (wear_count, status) so the trigger keeps tracking from there.
+  const [wearHistory, setWearHistory] = useState<"new" | "light" | "frequent" | "heavy">("new");
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [autofilling, setAutofilling] = useState(false);
@@ -85,9 +88,19 @@ export default function NewItemPage() {
     set(arr.includes(val) ? arr.filter((x) => x !== val) : [...arr, val]);
   }
 
+  // Map the chosen wear history to a seeded count + status so future outfit
+  // logs continue from a realistic baseline (and cost/wear math stays honest).
+  const WEAR_SEED: Record<typeof wearHistory, { count: number; status: typeof wearHistory }> = {
+    new: { count: 0, status: "new" },
+    light: { count: 2, status: "light" },
+    frequent: { count: 7, status: "frequent" },
+    heavy: { count: 20, status: "heavy" },
+  };
+
   async function save() {
     if (!userId || !name) return;
     setSaving(true); setErr(null);
+    const seed = WEAR_SEED[wearHistory];
     const { error } = await supabase.from("closet_items").insert({
       owner_id: userId,
       family_id: familyId,
@@ -106,6 +119,8 @@ export default function NewItemPage() {
       occasion_tags: occasionTags,
       season_tags: seasonTags,
       notes: notes.trim() || null,
+      wear_count: seed.count,
+      status: seed.status,
     });
     setSaving(false);
     if (error) setErr(error.message);
@@ -216,6 +231,29 @@ export default function NewItemPage() {
 
         <Field label="Season">
           <TagRow options={[...SEASON_TAGS]} selected={seasonTags} onToggle={(t) => toggle(seasonTags, t, setSeasonTags)} />
+        </Field>
+
+        <Field label="How often have you worn this so far?">
+          <div className="grid grid-cols-2 gap-2">
+            {([
+              ["new", "Never worn"],
+              ["light", "A few times"],
+              ["frequent", "Often"],
+              ["heavy", "A lot"],
+            ] as const).map(([key, label]) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setWearHistory(key)}
+                className={`h-10 px-3 rounded-full text-sm border ${
+                  wearHistory === key
+                    ? "bg-accent text-background border-accent"
+                    : "border-border bg-card"
+                }`}
+              >{label}</button>
+            ))}
+          </div>
+          <p className="text-xs text-muted">Seeds the wear count. Filters and cost-per-wear math start from here, then track new wears automatically.</p>
         </Field>
 
         <Field label="Notes">
