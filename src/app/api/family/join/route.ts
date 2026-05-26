@@ -12,21 +12,21 @@ export async function POST(req: Request) {
   const parsed = Body.safeParse(await req.json());
   if (!parsed.success) return NextResponse.json({ error: "Invalid code" }, { status: 422 });
 
-  // RPC: lookup family by code via SECURITY DEFINER function (defined below)
+  // Atomic: lookup + profile update in one RPC (avoids same RLS issue as create)
   const { data: family, error } = await supabase
-    .rpc("find_family_by_code", { p_code: parsed.data.code })
+    .rpc("join_family", { p_code: parsed.data.code })
     .single();
 
-  if (error || !family) {
-    return NextResponse.json({ error: "Invalid invite code" }, { status: 404 });
+  if (error) {
+    const m = error.message ?? "";
+    if (m.includes("invalid_code")) {
+      return NextResponse.json({ error: "Invalid invite code" }, { status: 404 });
+    }
+    if (m.includes("already_in_family")) {
+      return NextResponse.json({ error: "You're already in a family" }, { status: 400 });
+    }
+    return NextResponse.json({ error: m || "Failed" }, { status: 500 });
   }
-
-  const { error: profErr } = await supabase
-    .from("profiles")
-    // @ts-expect-error - rpc returns generic type
-    .update({ family_id: family.id })
-    .eq("id", user.id);
-  if (profErr) return NextResponse.json({ error: profErr.message }, { status: 500 });
 
   return NextResponse.json({ family });
 }

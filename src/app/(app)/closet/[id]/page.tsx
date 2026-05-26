@@ -62,7 +62,8 @@ export default async function ItemDetail({
       <dl className="card p-4 grid grid-cols-2 gap-y-3 gap-x-4 text-sm">
         <Row k="Category" v={item.category} />
         {item.brand && <Row k="Brand" v={item.brand} />}
-        {item.size && <Row k="Size" v={item.size} />}
+        {item.size && <Row k="Labeled size" v={item.size} />}
+        {item.fits_like && <Row k="Fits like" v={item.fits_like} />}
         {item.color_primary && <Row k="Color" v={item.color_primary} />}
         {item.purchase_price != null && (
           <Row

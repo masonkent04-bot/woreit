@@ -25,6 +25,7 @@ export default function NewItemPage() {
   const [subcategory, setSubcategory] = useState("");
   const [brand, setBrand] = useState("");
   const [size, setSize] = useState("");
+  const [fitsLike, setFitsLike] = useState("");
   const [colorPrimary, setColorPrimary] = useState("");
   const [price, setPrice] = useState("");
   const [rating, setRating] = useState<number | null>(null);
@@ -62,6 +63,7 @@ export default function NewItemPage() {
       subcategory: subcategory.trim() || null,
       brand: brand.trim() || null,
       size: size.trim() || null,
+      fits_like: fitsLike.trim() || null,
       color_primary: colorPrimary.trim() || null,
       purchase_price: price ? Number(price) : null,
       rating,
@@ -120,10 +122,19 @@ export default function NewItemPage() {
           <Field label="Brand">
             <input value={brand} onChange={(e) => setBrand(e.target.value)} className="w-full h-11 px-4 rounded-full border border-border bg-background" />
           </Field>
-          <Field label="Size">
-            <input value={size} onChange={(e) => setSize(e.target.value)} className="w-full h-11 px-4 rounded-full border border-border bg-background" />
+          <Field label="Labeled size">
+            <input value={size} onChange={(e) => setSize(e.target.value)} placeholder="M, 32x32, 8" className="w-full h-11 px-4 rounded-full border border-border bg-background" />
           </Field>
         </div>
+
+        <Field label="Fits like (real-world fit)">
+          <input
+            value={fitsLike}
+            onChange={(e) => setFitsLike(e.target.value)}
+            placeholder='e.g., "fits like a small", "runs long"'
+            className="w-full h-11 px-4 rounded-full border border-border bg-background"
+          />
+        </Field>
 
         <div className="grid grid-cols-2 gap-3">
           <Field label="Color">

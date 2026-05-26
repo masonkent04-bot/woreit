@@ -12,18 +12,19 @@ export async function POST(req: Request) {
   const parsed = Body.safeParse(await req.json());
   if (!parsed.success) return NextResponse.json({ error: "Invalid input" }, { status: 422 });
 
+  // Why: family insert + profile update must be atomic, and the SELECT after
+  // insert was failing RLS (policy gates on profile.family_id which wasn't
+  // updated yet). RPC bypasses RLS via SECURITY DEFINER.
   const { data: family, error } = await supabase
-    .from("families")
-    .insert({ name: parsed.data.name })
-    .select()
+    .rpc("create_family", { p_name: parsed.data.name })
     .single();
-  if (error || !family) return NextResponse.json({ error: error?.message ?? "Failed" }, { status: 500 });
 
-  const { error: profErr } = await supabase
-    .from("profiles")
-    .update({ family_id: family.id })
-    .eq("id", user.id);
-  if (profErr) return NextResponse.json({ error: profErr.message }, { status: 500 });
+  if (error) {
+    const msg = error.message?.includes("already_in_family")
+      ? "You're already in a family"
+      : error.message || "Failed";
+    return NextResponse.json({ error: msg }, { status: 400 });
+  }
 
   return NextResponse.json({ family });
 }

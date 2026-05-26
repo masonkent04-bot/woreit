@@ -46,6 +46,7 @@ export interface ClosetItem {
   subcategory: string | null;
   brand: string | null;
   size: string | null;
+  fits_like: string | null;
   color_primary: string | null;
   color_secondary: string | null;
   style_tags: string[];
