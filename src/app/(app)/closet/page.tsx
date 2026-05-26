@@ -1,34 +1,64 @@
 import Link from "next/link";
-import { Plus, Filter } from "lucide-react";
+import { Plus } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import ItemCard from "@/components/ItemCard";
 import EmptyState from "@/components/EmptyState";
-import type { ClosetItem } from "@/lib/types";
+import ClosetFilters from "./ClosetFilters";
+import type { ClosetItem, ItemCategory, WearStatus } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
+
+type SP = {
+  q?: string;
+  status?: string;
+  category?: string;
+  scope?: string;
+  season?: string;
+  occasion?: string;
+  laundry?: string;
+  archived?: string;
+};
 
 export default async function ClosetPage({
   searchParams,
 }: {
-  searchParams: Promise<{ filter?: string }>;
+  searchParams: Promise<SP>;
 }) {
-  const { filter } = await searchParams;
+  const sp = await searchParams;
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
+  // Build query from filters. Each filter is single-select via URL params
+  // to keep the URL parseable and shareable.
   let query = supabase
     .from("closet_items")
     .select("*")
     .eq("owner_id", user!.id)
-    .eq("is_archived", false)
     .order("updated_at", { ascending: false });
 
-  if (filter === "new") query = query.eq("status", "new");
-  if (filter === "underworn") query = query.in("status", ["new", "light"]);
-  if (filter === "favorites") query = query.gte("rating", 4);
+  // Default to non-archived unless explicitly viewing the donate pile
+  query = sp.archived === "1"
+    ? query.eq("is_archived", true)
+    : query.eq("is_archived", false);
+
+  if (sp.q) query = query.ilike("name", `%${sp.q}%`);
+  if (sp.status) {
+    if (sp.status === "underworn") query = query.in("status", ["new", "light"]);
+    else query = query.eq("status", sp.status as WearStatus);
+  }
+  if (sp.category) query = query.eq("category", sp.category as ItemCategory);
+  if (sp.scope) query = query.eq("scope", sp.scope);
+  if (sp.season) query = query.contains("season_tags", [sp.season]);
+  if (sp.occasion) query = query.contains("occasion_tags", [sp.occasion]);
+  if (sp.laundry === "1") query = query.eq("is_laundry", true);
 
   const { data: items } = await query;
   const list = (items as ClosetItem[]) ?? [];
+
+  const hasFilters = Boolean(
+    sp.q || sp.status || sp.category || sp.scope ||
+    sp.season || sp.occasion || sp.laundry || sp.archived
+  );
 
   return (
     <div className="space-y-5">
@@ -43,47 +73,30 @@ export default async function ClosetPage({
         </Link>
       </header>
 
-      <FilterBar current={filter ?? "all"} />
+      <ClosetFilters params={sp} />
+
+      {hasFilters && (
+        <p className="text-xs text-muted">
+          {list.length} item{list.length === 1 ? "" : "s"}
+          {sp.q && ` matching "${sp.q}"`}
+        </p>
+      )}
 
       {list.length === 0 ? (
         <EmptyState
-          icon="👚"
-          title="Your closet is empty"
-          description="Add the first item with a photo and a name. The more you add, the better the AI suggestions get."
-          actionLabel="Add an item"
-          actionHref="/closet/new"
+          icon={hasFilters ? "🔍" : "👚"}
+          title={hasFilters ? "Nothing matches" : "Your closet is empty"}
+          description={hasFilters
+            ? "Try clearing some filters."
+            : "Add the first item with a photo and a name. The more you add, the better the AI suggestions get."}
+          actionLabel={hasFilters ? "Clear filters" : "Add an item"}
+          actionHref={hasFilters ? "/closet" : "/closet/new"}
         />
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
           {list.map((it) => <ItemCard key={it.id} item={it} />)}
         </div>
       )}
-    </div>
-  );
-}
-
-function FilterBar({ current }: { current: string }) {
-  const opts = [
-    { id: "all", label: "All" },
-    { id: "new", label: "Never worn" },
-    { id: "underworn", label: "Underworn" },
-    { id: "favorites", label: "★ Favorites" },
-  ];
-  return (
-    <div className="flex gap-2 overflow-x-auto no-scrollbar -mx-1 px-1">
-      {opts.map((o) => (
-        <Link
-          key={o.id}
-          href={o.id === "all" ? "/closet" : `/closet?filter=${o.id}`}
-          className={`shrink-0 inline-flex items-center gap-1 h-9 px-4 rounded-full text-sm border ${
-            current === o.id
-              ? "bg-accent text-background border-accent"
-              : "border-border bg-card text-foreground"
-          }`}
-        >
-          {o.id === "all" && <Filter size={14} />} {o.label}
-        </Link>
-      ))}
     </div>
   );
 }

@@ -1,11 +1,12 @@
 import Link from "next/link";
-import { Plus } from "lucide-react";
+import { Plus, List, Calendar } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import EmptyState from "@/components/EmptyState";
+import OutfitCalendar from "./OutfitCalendar";
 
 export const dynamic = "force-dynamic";
 
-interface OutfitWithItems {
+interface OutfitRow {
   id: string;
   name: string | null;
   worn_at: string;
@@ -14,36 +15,65 @@ interface OutfitWithItems {
   outfit_items: { item_id: string; closet_items: { name: string; photo_path: string | null } | null }[];
 }
 
-export default async function OutfitsPage() {
+export default async function OutfitsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ view?: string; month?: string }>;
+}) {
+  const sp = await searchParams;
+  const view = sp.view === "list" ? "list" : "calendar";
+
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
-  const { data } = await supabase
+  // For calendar view, fetch the visible month; for list, fetch recent 60.
+  // Default month is current.
+  const now = new Date();
+  const monthStart = sp.month
+    ? new Date(`${sp.month}-01T00:00:00`)
+    : new Date(now.getFullYear(), now.getMonth(), 1);
+  const monthEnd = new Date(monthStart.getFullYear(), monthStart.getMonth() + 1, 1);
+
+  let query = supabase
     .from("outfits")
     .select(`
       id, name, worn_at, photo_path, occasion,
       outfit_items ( item_id, closet_items ( name, photo_path ) )
     `)
     .eq("owner_id", user!.id)
-    .order("worn_at", { ascending: false })
-    .limit(60);
+    .order("worn_at", { ascending: false });
 
-  const outfits = (data ?? []) as unknown as OutfitWithItems[];
+  if (view === "calendar") {
+    query = query.gte("worn_at", monthStart.toISOString()).lt("worn_at", monthEnd.toISOString());
+  } else {
+    query = query.limit(60);
+  }
+
+  const { data } = await query;
+  const outfits = (data ?? []) as unknown as OutfitRow[];
 
   return (
     <div className="space-y-5">
-      <header className="flex items-center justify-between">
+      <header className="flex items-center justify-between gap-2">
         <h1 className="text-2xl font-semibold tracking-tight">Outfits</h1>
-        <Link
-          href="/outfits/new"
-          className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-accent text-background"
-          aria-label="Log outfit"
-        >
-          <Plus size={20} />
-        </Link>
+        <div className="flex items-center gap-2">
+          <ViewSwitch current={view} />
+          <Link
+            href="/outfits/new"
+            className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-accent text-background"
+            aria-label="Log outfit"
+          >
+            <Plus size={20} />
+          </Link>
+        </div>
       </header>
 
-      {outfits.length === 0 ? (
+      {view === "calendar" ? (
+        <OutfitCalendar
+          monthStart={monthStart.toISOString()}
+          outfits={outfits}
+        />
+      ) : outfits.length === 0 ? (
         <EmptyState
           icon="📅"
           title="No outfits logged yet"
@@ -78,16 +108,39 @@ export default async function OutfitsPage() {
   );
 }
 
-function ItemStack({ items }: { items: OutfitWithItems["outfit_items"] }) {
+function ViewSwitch({ current }: { current: "list" | "calendar" }) {
+  return (
+    <div className="flex gap-1 p-1 rounded-full border border-border bg-card">
+      <Link
+        href="/outfits?view=calendar"
+        aria-label="Calendar view"
+        className={`w-8 h-8 rounded-full flex items-center justify-center ${
+          current === "calendar" ? "bg-accent text-background" : "text-muted"
+        }`}
+      >
+        <Calendar size={16} />
+      </Link>
+      <Link
+        href="/outfits?view=list"
+        aria-label="List view"
+        className={`w-8 h-8 rounded-full flex items-center justify-center ${
+          current === "list" ? "bg-accent text-background" : "text-muted"
+        }`}
+      >
+        <List size={16} />
+      </Link>
+    </div>
+  );
+}
+
+function ItemStack({ items }: { items: OutfitRow["outfit_items"] }) {
   return (
     <div className="flex -space-x-2">
       {items.slice(0, 3).map((oi, i) => {
         const p = oi.closet_items?.photo_path;
         return (
           <div key={i} className="w-12 h-12 rounded-full border-2 border-card overflow-hidden bg-background flex items-center justify-center text-lg">
-            {p ? (
-              <Thumb path={p} />
-            ) : "👕"}
+            {p ? <Thumb path={p} /> : "👕"}
           </div>
         );
       })}
@@ -96,7 +149,6 @@ function ItemStack({ items }: { items: OutfitWithItems["outfit_items"] }) {
 }
 
 function Thumb({ path }: { path: string }) {
-  // server-side public URL build via env to avoid client component
   const base = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const url = `${base}/storage/v1/object/public/item-photos/${path}?width=96&height=96&resize=cover&quality=70`;
   // eslint-disable-next-line @next/next/no-img-element
