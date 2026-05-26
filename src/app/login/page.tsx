@@ -57,18 +57,25 @@ function LoginInner() {
     setVerifyLoading(true);
     setError(null);
     const supabase = createClient();
-    // type: 'email' works for both signup confirmation + magic link OTP codes
-    const { error } = await supabase.auth.verifyOtp({
-      email,
-      token: code.trim(),
-      type: "email",
-    });
-    setVerifyLoading(false);
-    if (error) {
-      setError(error.message);
-    } else {
-      router.push("/");
+    const token = code.trim();
+    const normalizedEmail = email.trim().toLowerCase();
+
+    // Supabase uses different OTP types depending on whether the user is new
+    // (signup) or returning (magiclink). 'email' is a unified alias but doesn't
+    // always work — try them all so the user doesn't have to know which they are.
+    const types: Array<"email" | "magiclink" | "signup"> = ["email", "magiclink", "signup"];
+    let lastErr: string | null = null;
+    for (const type of types) {
+      const { error } = await supabase.auth.verifyOtp({ email: normalizedEmail, token, type });
+      if (!error) {
+        setVerifyLoading(false);
+        router.push("/");
+        return;
+      }
+      lastErr = error.message;
     }
+    setVerifyLoading(false);
+    setError(lastErr ?? "Invalid or expired code");
   }
 
   async function signInWithGoogle() {
@@ -100,17 +107,17 @@ function LoginInner() {
             <form onSubmit={verifyCode} className="space-y-3">
               <input
                 value={code}
-                onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                placeholder="123456"
+                onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 10))}
+                placeholder="12345678"
                 inputMode="numeric"
                 autoComplete="one-time-code"
-                maxLength={6}
-                className="w-full h-12 px-4 rounded-full border border-border bg-background text-center text-lg tracking-[0.4em] font-mono"
-                aria-label="6-digit code"
+                maxLength={10}
+                className="w-full h-12 px-4 rounded-full border border-border bg-background text-center text-lg tracking-[0.3em] font-mono"
+                aria-label="One-time code"
               />
               <button
                 type="submit"
-                disabled={verifyLoading || code.length !== 6}
+                disabled={verifyLoading || code.length < 6}
                 className="w-full h-12 rounded-full bg-accent text-background font-medium disabled:opacity-50"
               >
                 {verifyLoading ? "Verifying…" : "Sign in with code"}
