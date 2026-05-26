@@ -2,7 +2,7 @@
 
 import { useState, useRef } from "react";
 import Image from "next/image";
-import { Camera, X } from "lucide-react";
+import { Camera, ImageIcon, X } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 
 interface Props {
@@ -13,6 +13,10 @@ interface Props {
   aspect?: "square" | "portrait";
 }
 
+// Two file inputs: cameraRef forces device camera with capture="environment",
+// libraryRef opens the OS file/photo picker (no capture attr).
+// Splitting them is the only reliable cross-browser way to give users a choice;
+// a single input with capture forces camera-only on iOS Safari.
 export default function PhotoUpload({
   bucket,
   userId,
@@ -21,7 +25,8 @@ export default function PhotoUpload({
   aspect = "square",
 }: Props) {
   const supabase = createClient();
-  const inputRef = useRef<HTMLInputElement>(null);
+  const cameraRef = useRef<HTMLInputElement>(null);
+  const libraryRef = useRef<HTMLInputElement>(null);
   const [preview, setPreview] = useState<string | null>(
     initialPath ? supabase.storage.from(bucket).getPublicUrl(initialPath).data.publicUrl : null
   );
@@ -34,7 +39,6 @@ export default function PhotoUpload({
     setErr(null);
     setUploading(true);
 
-    // Show local preview immediately
     setPreview(URL.createObjectURL(file));
 
     const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
@@ -58,17 +62,28 @@ export default function PhotoUpload({
 
   return (
     <div className="space-y-2">
-      <button
-        type="button"
-        onClick={() => inputRef.current?.click()}
-        className={`relative ${aspectCls} w-full card overflow-hidden flex items-center justify-center`}
-      >
+      <div className={`relative ${aspectCls} w-full card overflow-hidden flex items-center justify-center`}>
         {preview ? (
-          <Image src={preview} alt="Preview" fill className="object-cover" sizes="100vw" />
+          <>
+            <Image src={preview} alt="Preview" fill className="object-cover" sizes="100vw" />
+            <span
+              role="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setPreview(null);
+                if (cameraRef.current) cameraRef.current.value = "";
+                if (libraryRef.current) libraryRef.current.value = "";
+              }}
+              aria-label="Remove photo"
+              className="absolute top-2 right-2 w-8 h-8 rounded-full bg-background/90 flex items-center justify-center z-10"
+            >
+              <X size={16} />
+            </span>
+          </>
         ) : (
           <div className="flex flex-col items-center text-muted">
             <Camera size={32} />
-            <span className="text-sm mt-1">Take or upload photo</span>
+            <span className="text-sm mt-1">Add a photo</span>
           </div>
         )}
         {uploading && (
@@ -76,25 +91,41 @@ export default function PhotoUpload({
             Uploading…
           </div>
         )}
-        {preview && !uploading && (
-          <span
-            role="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              setPreview(null);
-              if (inputRef.current) inputRef.current.value = "";
-            }}
-            className="absolute top-2 right-2 w-8 h-8 rounded-full bg-background/90 flex items-center justify-center"
+      </div>
+
+      {/* Two clear actions instead of one ambiguous tap */}
+      {!uploading && (
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            onClick={() => cameraRef.current?.click()}
+            className="h-10 rounded-full border border-border bg-card text-sm font-medium flex items-center justify-center gap-1.5"
           >
-            <X size={16} />
-          </span>
-        )}
-      </button>
+            <Camera size={14} /> Take photo
+          </button>
+          <button
+            type="button"
+            onClick={() => libraryRef.current?.click()}
+            className="h-10 rounded-full border border-border bg-card text-sm font-medium flex items-center justify-center gap-1.5"
+          >
+            <ImageIcon size={14} /> Upload
+          </button>
+        </div>
+      )}
+
+      {/* Two hidden inputs — camera vs library */}
       <input
-        ref={inputRef}
+        ref={cameraRef}
         type="file"
         accept="image/*"
         capture="environment"
+        onChange={handleFile}
+        className="hidden"
+      />
+      <input
+        ref={libraryRef}
+        type="file"
+        accept="image/*"
         onChange={handleFile}
         className="hidden"
       />
