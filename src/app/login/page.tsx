@@ -1,13 +1,40 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
+// Why a Suspense wrap: useSearchParams forces dynamic rendering;
+// wrapping the inner component lets the static shell render first.
 export default function LoginPage() {
+  return (
+    <Suspense>
+      <LoginInner />
+    </Suspense>
+  );
+}
+
+function LoginInner() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
   const [email, setEmail] = useState("");
   const [sent, setSent] = useState(false);
+  const [code, setCode] = useState("");
   const [loading, setLoading] = useState(false);
+  const [verifyLoading, setVerifyLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Surface auth callback errors so users know what happened
+  // (previously they silently bounced back to /login with no feedback)
+  useEffect(() => {
+    const err = searchParams.get("error");
+    if (err === "auth") {
+      setError(
+        "Couldn't sign you in with that link. Try the 6-digit code from the email instead, or request a new link."
+      );
+    }
+  }, [searchParams]);
 
   async function sendMagicLink(e: React.FormEvent) {
     e.preventDefault();
@@ -23,6 +50,25 @@ export default function LoginPage() {
     setLoading(false);
     if (error) setError(error.message);
     else setSent(true);
+  }
+
+  async function verifyCode(e: React.FormEvent) {
+    e.preventDefault();
+    setVerifyLoading(true);
+    setError(null);
+    const supabase = createClient();
+    // type: 'email' works for both signup confirmation + magic link OTP codes
+    const { error } = await supabase.auth.verifyOtp({
+      email,
+      token: code.trim(),
+      type: "email",
+    });
+    setVerifyLoading(false);
+    if (error) {
+      setError(error.message);
+    } else {
+      router.push("/");
+    }
   }
 
   async function signInWithGoogle() {
@@ -41,15 +87,39 @@ export default function LoginPage() {
         <div className="text-center space-y-2">
           <div className="text-4xl">👕</div>
           <h1 className="text-2xl font-semibold tracking-tight">Sign in to WoreIt</h1>
-          <p className="text-sm text-muted">We&apos;ll email you a magic link.</p>
+          <p className="text-sm text-muted">We&apos;ll email you a link or a 6-digit code.</p>
         </div>
 
         {sent ? (
-          <div className="text-center text-sm space-y-3">
-            <p>Check {email} for a sign-in link.</p>
+          <div className="space-y-4">
+            <p className="text-sm text-center text-muted">
+              Check <span className="text-foreground font-medium">{email}</span> for the email.
+              Click the link, or paste the 6-digit code below.
+            </p>
+
+            <form onSubmit={verifyCode} className="space-y-3">
+              <input
+                value={code}
+                onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                placeholder="123456"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                maxLength={6}
+                className="w-full h-12 px-4 rounded-full border border-border bg-background text-center text-lg tracking-[0.4em] font-mono"
+                aria-label="6-digit code"
+              />
+              <button
+                type="submit"
+                disabled={verifyLoading || code.length !== 6}
+                className="w-full h-12 rounded-full bg-accent text-background font-medium disabled:opacity-50"
+              >
+                {verifyLoading ? "Verifying…" : "Sign in with code"}
+              </button>
+            </form>
+
             <button
-              onClick={() => setSent(false)}
-              className="text-muted underline text-xs"
+              onClick={() => { setSent(false); setCode(""); setError(null); }}
+              className="block mx-auto text-muted underline text-xs"
             >
               Use a different email
             </button>
