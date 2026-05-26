@@ -40,7 +40,29 @@ body {
   text-rendering: optimizeLegibility;
 }
 
-button, [role="button"] { touch-action: manipulation; }
+/* INSTANT TAP FEEDBACK — the core fix for "nothing responds when I click" */
+button, [role="button"], a {
+  touch-action: manipulation;
+  /* Sub-frame transition gives the eye a "your tap registered" signal */
+  transition: transform 80ms cubic-bezier(0.4, 0, 0.2, 1), opacity 80ms cubic-bezier(0.4, 0, 0.2, 1);
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* Visceral press — scales down + dims the moment your finger touches.
+   Excludes <a> inside <p> (prose text links shouldn't bounce). */
+button:active:not(:disabled),
+[role="button"]:active,
+a:active:not(p a):not(h1 a):not(h2 a) {
+  transform: scale(0.97);
+  opacity: 0.8;
+  transition-duration: 0ms; /* respond immediately, animate out on release */
+}
+
+/* Card-style links get a slightly more subtle press */
+a.card:active, .card:active {
+  transform: scale(0.985);
+}
 
 .no-scrollbar::-webkit-scrollbar { display: none; }
 .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
@@ -53,3 +75,35 @@ button, [role="button"] { touch-action: manipulation; }
 
 .pb-safe { padding-bottom: max(env(safe-area-inset-bottom), 0.5rem); }
 .pt-safe { padding-top: max(env(safe-area-inset-top), 0.5rem); }
+
+/* === SKELETON SHIMMER for loading.tsx files === */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.skeleton {
+  background: linear-gradient(90deg, var(--border) 0%, var(--card) 50%, var(--border) 100%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+  border-radius: 12px;
+}
+
+/* === VIEW TRANSITIONS — smooth cross-fade between pages on Chrome/Safari === */
+@view-transition { navigation: auto; }
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 220ms;
+  animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+}
+::view-transition-old(root) { animation-name: fade-out; }
+::view-transition-new(root) { animation-name: fade-in; }
+@keyframes fade-out { to { opacity: 0; } }
+@keyframes fade-in { from { opacity: 0; } }
+
+/* Reduce-motion: respect user preference */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
