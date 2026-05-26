@@ -2,7 +2,13 @@ import Image from "next/image";
 import Link from "next/link";
 import type { ClosetItem } from "@/lib/types";
 import WearStatusBadge from "./WearStatusBadge";
-import { createClient } from "@/lib/supabase/client";
+
+// Build photo URL from env var so this component is safe in server OR client.
+// Importing the client Supabase helper here would crash server-render.
+function photoUrl(path: string) {
+  const base = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  return `${base}/storage/v1/object/public/item-photos/${path}?width=600&height=600&resize=cover&quality=80`;
+}
 
 export default function ItemCard({
   item,
@@ -11,7 +17,7 @@ export default function ItemCard({
   item: ClosetItem;
   href?: string;
 }) {
-  const url = item.photo_path ? publicUrl(item.photo_path) : null;
+  const url = item.photo_path ? photoUrl(item.photo_path) : null;
   const target = href ?? `/closet/${item.id}`;
 
   return (
@@ -47,12 +53,4 @@ export default function ItemCard({
       </div>
     </Link>
   );
-}
-
-function publicUrl(path: string) {
-  const supabase = createClient();
-  const { data } = supabase.storage.from("item-photos").getPublicUrl(path, {
-    transform: { width: 600, height: 600, resize: "cover", quality: 80 },
-  });
-  return data.publicUrl;
 }

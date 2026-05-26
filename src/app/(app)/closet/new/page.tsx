@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import PhotoUpload from "@/components/PhotoUpload";
@@ -37,6 +37,39 @@ export default function NewItemPage() {
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [autofilling, setAutofilling] = useState(false);
+  const [autofillNote, setAutofillNote] = useState<string | null>(null);
+
+  async function autofillFromPhoto(path: string) {
+    setAutofilling(true);
+    setAutofillNote(null);
+    try {
+      const res = await fetch("/api/ai/auto-tag", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ photo_path: path }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        setAutofillNote(json.error || "Couldn't auto-fill — fill in manually");
+        return;
+      }
+      const t = json.tags;
+      // Only fill empty fields so we don't clobber user edits if they re-run
+      if (t.name && !name) setName(t.name);
+      if (t.category) setCategory(t.category);
+      if (t.subcategory && !subcategory) setSubcategory(t.subcategory);
+      if (t.color_primary && !colorPrimary) setColorPrimary(t.color_primary);
+      if (t.style_tags?.length && styleTags.length === 0) setStyleTags(t.style_tags);
+      if (t.occasion_tags?.length && occasionTags.length === 0) setOccasionTags(t.occasion_tags);
+      if (t.season_tags?.length && seasonTags.length === 0) setSeasonTags(t.season_tags);
+      setAutofillNote("AI filled in what it could — review and edit anything wrong");
+    } catch (e) {
+      setAutofillNote((e as Error).message);
+    } finally {
+      setAutofilling(false);
+    }
+  }
 
   useEffect(() => {
     (async () => {
@@ -92,8 +125,28 @@ export default function NewItemPage() {
         <PhotoUpload
           bucket="item-photos"
           userId={userId}
-          onUploaded={(p) => setPhotoPath(p)}
+          onUploaded={(p) => {
+            setPhotoPath(p);
+            // Auto-trigger AI fill as soon as the photo finishes uploading
+            autofillFromPhoto(p);
+          }}
         />
+      )}
+
+      {photoPath && (
+        <button
+          type="button"
+          onClick={() => photoPath && autofillFromPhoto(photoPath)}
+          disabled={autofilling}
+          className="w-full h-11 rounded-full border border-border font-medium flex items-center justify-center gap-2 disabled:opacity-50"
+        >
+          <Sparkles size={16} className={autofilling ? "animate-pulse" : ""} />
+          {autofilling ? "Reading photo with AI…" : "Re-run AI autofill"}
+        </button>
+      )}
+
+      {autofillNote && (
+        <p className="text-xs text-muted text-center">{autofillNote}</p>
       )}
 
       <div className="space-y-3">
