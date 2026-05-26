@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 
 export default function SettingsPage() {
@@ -94,6 +95,13 @@ export default function SettingsPage() {
         >
           {saving ? "Saving…" : saved ? "Saved ✓" : "Save"}
         </button>
+      </div>
+
+      <div className="card divide-y divide-border">
+        <Link href="/wishlist" className="block p-4 flex items-center justify-between hover:bg-background/50">
+          <span className="text-sm font-medium">💭 Wishlist</span>
+          <span className="text-xs text-muted">→</span>
+        </Link>
       </div>
 
       <button

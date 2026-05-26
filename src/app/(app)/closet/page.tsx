@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Plus } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import ItemCard from "@/components/ItemCard";
+import ClosetSummary from "@/components/ClosetSummary";
 import EmptyState from "@/components/EmptyState";
 import ClosetFilters from "./ClosetFilters";
 import type { ClosetItem, ItemCategory, WearStatus } from "@/lib/types";
@@ -82,6 +83,8 @@ export default async function ClosetPage({
           <Plus size={20} />
         </Link>
       </header>
+
+      {!hasFilters && <ClosetSummary items={list} />}
 
       <ClosetFilters params={sp} />
 

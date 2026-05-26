@@ -4,9 +4,16 @@ import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import ItemCard from "@/components/ItemCard";
+import Reactions from "./Reactions";
 import type { ClosetItem, Outfit } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
+
+interface ReactionRow {
+  reactor_id: string;
+  emoji: string;
+  profiles: { display_name: string } | null;
+}
 
 export default async function OutfitDetail({
   params,
@@ -15,12 +22,14 @@ export default async function OutfitDetail({
 }) {
   const { id } = await params;
   const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
 
   const { data } = await supabase
     .from("outfits")
     .select(`
       *,
-      outfit_items ( closet_items (*) )
+      outfit_items ( closet_items (*) ),
+      outfit_reactions ( reactor_id, emoji, profiles ( display_name ) )
     `)
     .eq("id", id)
     .maybeSingle();
@@ -29,6 +38,7 @@ export default async function OutfitDetail({
 
   const outfit = data as Outfit & {
     outfit_items: { closet_items: ClosetItem | null }[];
+    outfit_reactions: ReactionRow[];
   };
 
   const items = outfit.outfit_items
@@ -61,6 +71,14 @@ export default async function OutfitDetail({
         <div className="relative aspect-[3/4] card overflow-hidden">
           <Image src={photoUrl} alt="Outfit photo" fill sizes="100vw" className="object-cover" />
         </div>
+      )}
+
+      {user && (
+        <Reactions
+          outfitId={outfit.id}
+          initial={outfit.outfit_reactions ?? []}
+          currentUserId={user.id}
+        />
       )}
 
       <div>
