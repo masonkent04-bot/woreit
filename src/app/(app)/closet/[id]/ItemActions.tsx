@@ -14,13 +14,10 @@ export default function ItemActions({ itemId }: { itemId: string }) {
     start(async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
-      const { data: prof } = await supabase
-        .from("profiles").select("family_id").eq("id", user.id).single();
       const { data: outfit } = await supabase
         .from("outfits")
         .insert({
           owner_id: user.id,
-          family_id: prof?.family_id ?? null,
           name: "Quick log",
         })
         .select()

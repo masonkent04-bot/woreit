@@ -11,14 +11,14 @@ export default async function AppLayout({
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  // Force users without a family through onboarding
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("family_id")
-    .eq("id", user.id)
+  // Gate the app on household membership (was previously profile.family_id)
+  const { data: membership } = await supabase
+    .from("household_members")
+    .select("household_id")
+    .eq("user_id", user.id)
     .maybeSingle();
 
-  if (!profile?.family_id) redirect("/onboarding");
+  if (!membership) redirect("/onboarding");
 
   return (
     <>

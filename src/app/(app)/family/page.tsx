@@ -1,56 +1,89 @@
 import Link from "next/link";
+import { Plus } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import EmptyState from "@/components/EmptyState";
+import FamilyJoiner from "./FamilyJoiner";
 
 export const dynamic = "force-dynamic";
+
+interface FamilyWithHouseholds {
+  family_id: string;
+  families: {
+    id: string;
+    name: string;
+    invite_code: string;
+  } | null;
+}
 
 export default async function FamilyPage() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
-  const { data: profile } = await supabase
-    .from("profiles").select("family_id").eq("id", user!.id).single();
+  // My household
+  const { data: membership } = await supabase
+    .from("household_members")
+    .select("household_id, role")
+    .eq("user_id", user!.id)
+    .maybeSingle();
 
-  if (!profile?.family_id) {
-    return <EmptyState icon="👨‍👩‍👧" title="No family yet" description="Set up your family first." actionLabel="Set up" actionHref="/onboarding" />;
+  if (!membership) {
+    return <EmptyState icon="🏠" title="No household yet" description="Set up your household first." actionLabel="Set up" actionHref="/onboarding" />;
   }
 
-  const [{ data: family }, { data: members }] = await Promise.all([
-    supabase.from("families").select("*").eq("id", profile.family_id).single(),
-    supabase
-      .from("profiles")
-      .select("id, display_name, avatar_url")
-      .eq("family_id", profile.family_id),
-  ]);
+  const { data: household } = await supabase
+    .from("households").select("organizer_id").eq("id", membership.household_id).single();
+  const isOrganizer = household?.organizer_id === user!.id;
+
+  // Families my household is in
+  const { data: familyLinks } = await supabase
+    .from("family_households")
+    .select(`family_id, families ( id, name, invite_code )`)
+    .eq("household_id", membership.household_id);
+  const families = (familyLinks ?? []) as unknown as FamilyWithHouseholds[];
 
   return (
     <div className="space-y-5">
-      <h1 className="text-2xl font-semibold tracking-tight">{family?.name}</h1>
+      <header>
+        <h1 className="text-2xl font-semibold tracking-tight">Families</h1>
+        <p className="text-sm text-muted mt-1">
+          {families.length === 0
+            ? "Your household isn't in any family yet."
+            : `Your household is part of ${families.length} ${families.length === 1 ? "family" : "families"}.`}
+        </p>
+      </header>
 
-      <div className="card p-4">
-        <p className="text-xs uppercase tracking-wide text-muted">Invite code</p>
-        <p className="text-2xl font-mono tracking-widest mt-1">{family?.invite_code}</p>
-        <p className="text-xs text-muted mt-2">Share this with family members so they can join.</p>
-      </div>
+      {isOrganizer && <FamilyJoiner />}
 
-      <div className="space-y-2">
-        <h2 className="text-xs uppercase tracking-wide text-muted">Members</h2>
-        {(members ?? []).map(m => (
-          <Link
-            key={m.id}
-            href={`/family/${m.id}`}
-            className="card p-3 flex items-center gap-3"
-          >
-            <div className="w-10 h-10 rounded-full bg-background flex items-center justify-center text-sm font-medium border border-border">
-              {m.display_name?.[0]?.toUpperCase() ?? "?"}
-            </div>
-            <div className="flex-1">
-              <p className="font-medium">{m.display_name}</p>
-              <p className="text-xs text-muted">View closet →</p>
-            </div>
-          </Link>
-        ))}
-      </div>
+      {!isOrganizer && families.length === 0 && (
+        <p className="text-sm text-muted text-center">Only your household organizer can create or join families.</p>
+      )}
+
+      <ul className="space-y-3">
+        {families.map(link => {
+          const fam = link.families;
+          if (!fam) return null;
+          return (
+            <li key={fam.id}>
+              <Link href={`/family/${fam.id}`} className="card p-4 block">
+                <div className="flex items-center justify-between">
+                  <span className="font-medium">{fam.name}</span>
+                  <span className="font-mono text-xs text-muted">{fam.invite_code}</span>
+                </div>
+                <p className="text-xs text-muted mt-1">Tap to see member households</p>
+              </Link>
+            </li>
+          );
+        })}
+      </ul>
+
+      {isOrganizer && families.length > 0 && (
+        <Link
+          href="/household"
+          className="text-xs text-muted underline block text-center"
+        >
+          Manage your household
+        </Link>
+      )}
     </div>
   );
 }

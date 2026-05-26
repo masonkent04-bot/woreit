@@ -3,12 +3,16 @@ import { z } from "zod";
 import Anthropic from "@anthropic-ai/sdk";
 import { createClient } from "@/lib/supabase/server";
 
-// AI autofill: send the item photo to Claude vision, get back structured
-// metadata that pre-fills the new-item form. User can edit if anything's wrong.
+// AI autofill: send the item photo(s) to Claude vision, get structured tags.
+// Sending both front + back when available gives much better identification
+// (e.g., graphics on the back, fit details, brand tags).
 
-const Body = z.object({ photo_path: z.string().min(1) });
+const Body = z.object({
+  photo_path: z.string().min(1),
+  photo_back_path: z.string().nullable().optional(),
+});
 
-const SYSTEM_PROMPT = `You are a fashion-cataloging assistant. The user uploaded a photo of a single clothing item to add to their personal closet inventory.
+const SYSTEM_PROMPT = `You are a fashion-cataloging assistant. The user uploaded photos of a single clothing item to add to their personal closet inventory. If two images are provided, they show FRONT and BACK of the same item.
 
 Extract the item's attributes and respond ONLY with a JSON object matching this exact schema. No prose, no markdown fences.
 
@@ -24,6 +28,18 @@ Extract the item's attributes and respond ONLY with a JSON object matching this 
 }
 
 Be conservative — if you're not sure, leave a field null or empty.`;
+
+type MediaType = "image/jpeg" | "image/png" | "image/webp" | "image/gif";
+
+async function fetchAsBase64(path: string): Promise<{ data: string; mediaType: MediaType }> {
+  const baseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+  const url = `${baseUrl}/storage/v1/object/public/item-photos/${path}?width=800&height=800&resize=contain&quality=85`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error("Photo not found");
+  const buf = Buffer.from(await res.arrayBuffer());
+  const mediaType = (res.headers.get("content-type") ?? "image/jpeg") as MediaType;
+  return { data: buf.toString("base64"), mediaType };
+}
 
 export async function POST(req: Request) {
   if (!process.env.ANTHROPIC_API_KEY) {
@@ -44,36 +60,34 @@ export async function POST(req: Request) {
   if (!parsed.data.photo_path.startsWith(`${user.id}/`)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
-
-  // Build the public URL and fetch the image
-  const baseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-  const imageUrl = `${baseUrl}/storage/v1/object/public/item-photos/${parsed.data.photo_path}?width=800&height=800&resize=contain&quality=85`;
-
-  const imgRes = await fetch(imageUrl);
-  if (!imgRes.ok) {
-    return NextResponse.json({ error: "Photo not found" }, { status: 404 });
+  if (parsed.data.photo_back_path && !parsed.data.photo_back_path.startsWith(`${user.id}/`)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
-  const buf = Buffer.from(await imgRes.arrayBuffer());
-  const base64 = buf.toString("base64");
-  const mediaType = (imgRes.headers.get("content-type") ?? "image/jpeg") as
-    | "image/jpeg" | "image/png" | "image/webp" | "image/gif";
-
-  const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
   try {
+    const front = await fetchAsBase64(parsed.data.photo_path);
+    const back = parsed.data.photo_back_path
+      ? await fetchAsBase64(parsed.data.photo_back_path)
+      : null;
+
+    const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+
+    const content: Anthropic.ContentBlockParam[] = [
+      { type: "image", source: { type: "base64", media_type: front.mediaType, data: front.data } },
+    ];
+    if (back) {
+      content.push({ type: "image", source: { type: "base64", media_type: back.mediaType, data: back.data } });
+    }
+    content.push({
+      type: "text",
+      text: back ? "Two images: front then back of the same item. Catalog it." : "Catalog this item.",
+    });
+
     const msg = await anthropic.messages.create({
       model: "claude-sonnet-4-6",
       max_tokens: 500,
       system: SYSTEM_PROMPT,
-      messages: [
-        {
-          role: "user",
-          content: [
-            { type: "image", source: { type: "base64", media_type: mediaType, data: base64 } },
-            { type: "text", text: "Catalog this item." },
-          ],
-        },
-      ],
+      messages: [{ role: "user", content }],
     });
 
     const text = msg.content
@@ -81,7 +95,6 @@ export async function POST(req: Request) {
       .map(b => b.text)
       .join("");
 
-    // Strip any accidental markdown fences
     const clean = text.trim().replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/i, "");
     const tags = JSON.parse(clean);
 

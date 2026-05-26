@@ -1,33 +1,48 @@
 import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Users } from "lucide-react";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import ItemCard from "@/components/ItemCard";
-import EmptyState from "@/components/EmptyState";
-import type { ClosetItem } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
-export default async function MemberClosetPage({
+interface HouseholdWithMembers {
+  household_id: string;
+  households: {
+    id: string;
+    name: string;
+  } | null;
+}
+
+export default async function FamilyDetailPage({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
   const supabase = await createClient();
-  const { data: profile } = await supabase
-    .from("profiles").select("display_name").eq("id", id).maybeSingle();
 
-  if (!profile) return notFound();
+  const { data: family } = await supabase
+    .from("families").select("id, name, invite_code").eq("id", id).maybeSingle();
+  if (!family) return notFound();
 
-  const { data: items } = await supabase
-    .from("closet_items")
-    .select("*")
-    .eq("owner_id", id)
-    .eq("is_archived", false)
-    .order("updated_at", { ascending: false });
+  const { data: householdLinks } = await supabase
+    .from("family_households")
+    .select(`household_id, households ( id, name )`)
+    .eq("family_id", id);
+  const households = (householdLinks ?? []) as unknown as HouseholdWithMembers[];
 
-  const list = (items as ClosetItem[]) ?? [];
+  // For each household, fetch members in parallel
+  const householdsWithMembers = await Promise.all(
+    households
+      .filter((h): h is HouseholdWithMembers & { households: { id: string; name: string } } => h.households !== null)
+      .map(async (h) => {
+        const { data: members } = await supabase
+          .from("household_members")
+          .select("user_id, profiles ( id, display_name )")
+          .eq("household_id", h.household_id);
+        return { household: h.households, members: (members ?? []) as unknown as { user_id: string; profiles: { id: string; display_name: string } | null }[] };
+      })
+  );
 
   return (
     <div className="space-y-5">
@@ -35,16 +50,40 @@ export default async function MemberClosetPage({
         <Link href="/family" className="w-9 h-9 rounded-full flex items-center justify-center hover:bg-card">
           <ArrowLeft size={20} />
         </Link>
-        <h1 className="text-xl font-semibold tracking-tight">{profile.display_name}&apos;s closet</h1>
+        <div className="flex-1 min-w-0">
+          <h1 className="text-xl font-semibold tracking-tight truncate">{family.name}</h1>
+          <p className="text-xs text-muted font-mono">Invite code: {family.invite_code}</p>
+        </div>
       </header>
 
-      {list.length === 0 ? (
-        <EmptyState icon="👔" title="Empty closet" description="They haven't added items yet." />
-      ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-          {list.map(it => <ItemCard key={it.id} item={it} href={`/closet/${it.id}`} />)}
-        </div>
-      )}
+      <p className="text-xs text-muted">Share the invite code with another household to add them.</p>
+
+      <div className="space-y-4">
+        {householdsWithMembers.map(({ household, members }) => (
+          <div key={household.id} className="card p-4 space-y-3">
+            <div className="flex items-center gap-2">
+              <Users size={16} className="text-muted" />
+              <h2 className="font-medium">{household.name}</h2>
+            </div>
+            <ul className="space-y-1.5">
+              {members.map(m => (
+                <li key={m.user_id}>
+                  <Link
+                    href={`/family/member/${m.user_id}`}
+                    className="flex items-center gap-2 text-sm hover:underline"
+                  >
+                    <div className="w-7 h-7 rounded-full bg-background border border-border flex items-center justify-center text-xs">
+                      {m.profiles?.display_name?.[0]?.toUpperCase() ?? "?"}
+                    </div>
+                    <span>{m.profiles?.display_name}</span>
+                    <span className="text-xs text-muted ml-auto">View closet →</span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

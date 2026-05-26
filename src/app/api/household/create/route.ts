@@ -12,17 +12,16 @@ export async function POST(req: Request) {
   const parsed = Body.safeParse(await req.json());
   if (!parsed.success) return NextResponse.json({ error: "Invalid input" }, { status: 422 });
 
-  // create_family RPC now requires the user to be a household organizer
-  const { data: family, error } = await supabase
-    .rpc("create_family", { p_name: parsed.data.name })
+  const { data: household, error } = await supabase
+    .rpc("create_household", { p_name: parsed.data.name })
     .single();
 
   if (error) {
-    const m = error.message ?? "";
-    if (m.includes("no_household")) return NextResponse.json({ error: "Create or join a household first" }, { status: 400 });
-    if (m.includes("not_organizer")) return NextResponse.json({ error: "Only your household organizer can create families" }, { status: 403 });
-    return NextResponse.json({ error: m || "Failed" }, { status: 400 });
+    const msg = error.message?.includes("already_in_household")
+      ? "You're already in a household"
+      : error.message || "Failed";
+    return NextResponse.json({ error: msg }, { status: 400 });
   }
 
-  return NextResponse.json({ family });
+  return NextResponse.json({ household });
 }

@@ -72,12 +72,10 @@ export default function OutfitBuilderPage() {
 
   async function logIt() {
     if (!userId || !suggestion) return;
-    const { data: prof } = await supabase.from("profiles").select("family_id").eq("id", userId).single();
     const { data: outfit } = await supabase
       .from("outfits")
       .insert({
         owner_id: userId,
-        family_id: prof?.family_id ?? null,
         name: `AI ${occasion} look`,
         occasion,
         ai_generated: true,

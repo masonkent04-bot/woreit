@@ -12,18 +12,16 @@ export async function POST(req: Request) {
   const parsed = Body.safeParse(await req.json());
   if (!parsed.success) return NextResponse.json({ error: "Invalid code" }, { status: 422 });
 
-  const { data: family, error } = await supabase
-    .rpc("join_family", { p_code: parsed.data.code })
+  const { data: household, error } = await supabase
+    .rpc("join_household", { p_code: parsed.data.code })
     .single();
 
   if (error) {
     const m = error.message ?? "";
     if (m.includes("invalid_code")) return NextResponse.json({ error: "Invalid invite code" }, { status: 404 });
-    if (m.includes("already_in_family")) return NextResponse.json({ error: "Your household is already in that family" }, { status: 400 });
-    if (m.includes("no_household")) return NextResponse.json({ error: "Create or join a household first" }, { status: 400 });
-    if (m.includes("not_organizer")) return NextResponse.json({ error: "Only your household organizer can join families" }, { status: 403 });
+    if (m.includes("already_in_household")) return NextResponse.json({ error: "You're already in a household" }, { status: 400 });
     return NextResponse.json({ error: m || "Failed" }, { status: 500 });
   }
 
-  return NextResponse.json({ family });
+  return NextResponse.json({ household });
 }

@@ -1,23 +1,28 @@
 // Manually curated types matching the supabase schema
-// (Skipping codegen to avoid build dependency; small enough to hand-maintain)
 
 export type WearStatus = "new" | "light" | "frequent" | "heavy";
+export type ItemScope = "personal" | "household";
 
 export type ItemCategory =
-  | "top"
-  | "bottom"
-  | "dress"
-  | "skirt"
-  | "outerwear"
-  | "shoes"
-  | "accessory"
-  | "bag"
-  | "jewelry"
-  | "underwear"
-  | "sleepwear"
-  | "activewear"
-  | "swimwear"
-  | "other";
+  | "top" | "bottom" | "dress" | "skirt" | "outerwear" | "shoes"
+  | "accessory" | "bag" | "jewelry" | "underwear" | "sleepwear"
+  | "activewear" | "swimwear" | "other";
+
+export interface Household {
+  id: string;
+  name: string;
+  organizer_id: string;
+  invite_code: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface HouseholdMember {
+  household_id: string;
+  user_id: string;
+  role: "organizer" | "member";
+  joined_at: string;
+}
 
 export interface Family {
   id: string;
@@ -28,7 +33,6 @@ export interface Family {
 
 export interface Profile {
   id: string;
-  family_id: string | null;
   display_name: string;
   avatar_url: string | null;
   prefers_modest: boolean;
@@ -40,7 +44,8 @@ export interface Profile {
 export interface ClosetItem {
   id: string;
   owner_id: string;
-  family_id: string | null;
+  household_id: string | null;
+  scope: ItemScope;
   name: string;
   category: ItemCategory;
   subcategory: string | null;
@@ -58,6 +63,7 @@ export interface ClosetItem {
   purchase_date: string | null;
   notes: string | null;
   photo_path: string | null;
+  photo_back_path: string | null;
   photo_bg_removed_path: string | null;
   ai_tags_pending: boolean;
   wear_count: number;
@@ -72,7 +78,6 @@ export interface ClosetItem {
 export interface Outfit {
   id: string;
   owner_id: string;
-  family_id: string | null;
   name: string | null;
   worn_at: string;
   occasion: string | null;
@@ -85,20 +90,11 @@ export interface Outfit {
 }
 
 export const CATEGORY_LABELS: Record<ItemCategory, string> = {
-  top: "Top",
-  bottom: "Bottoms",
-  dress: "Dress",
-  skirt: "Skirt",
-  outerwear: "Outerwear",
-  shoes: "Shoes",
-  accessory: "Accessory",
-  bag: "Bag",
-  jewelry: "Jewelry",
-  underwear: "Underwear",
-  sleepwear: "Sleepwear",
-  activewear: "Activewear",
-  swimwear: "Swimwear",
-  other: "Other",
+  top: "Top", bottom: "Bottoms", dress: "Dress", skirt: "Skirt",
+  outerwear: "Outerwear", shoes: "Shoes", accessory: "Accessory",
+  bag: "Bag", jewelry: "Jewelry", underwear: "Underwear",
+  sleepwear: "Sleepwear", activewear: "Activewear",
+  swimwear: "Swimwear", other: "Other",
 };
 
 export const WEAR_STATUS_LABELS: Record<WearStatus, { label: string; tone: string }> = {
@@ -108,28 +104,19 @@ export const WEAR_STATUS_LABELS: Record<WearStatus, { label: string; tone: strin
   heavy: { label: "Worn a lot", tone: "text-muted" },
 };
 
+export const SCOPE_LABELS: Record<ItemScope, string> = {
+  personal: "Personal",
+  household: "Household",
+};
+
 export const STYLE_TAGS = [
-  "casual",
-  "dressy",
-  "athletic",
-  "vintage",
-  "trendy",
-  "classic",
-  "bohemian",
-  "edgy",
-  "preppy",
-  "minimalist",
+  "casual", "dressy", "athletic", "vintage", "trendy",
+  "classic", "bohemian", "edgy", "preppy", "minimalist",
 ] as const;
 
 export const OCCASION_TAGS = [
-  "church",
-  "work",
-  "casual",
-  "date",
-  "party",
-  "gym",
-  "lounging",
-  "errands",
+  "church", "work", "casual", "date", "party",
+  "gym", "lounging", "errands",
 ] as const;
 
 export const SEASON_TAGS = ["spring", "summer", "fall", "winter"] as const;

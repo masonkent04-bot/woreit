@@ -14,7 +14,6 @@ export default function NewOutfitPage() {
   const supabase = createClient();
   const router = useRouter();
   const [userId, setUserId] = useState<string | null>(null);
-  const [familyId, setFamilyId] = useState<string | null>(null);
   const [items, setItems] = useState<ClosetItem[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [name, setName] = useState("");
@@ -28,11 +27,9 @@ export default function NewOutfitPage() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
       setUserId(user.id);
-      const [{ data: prof }, { data: list }] = await Promise.all([
-        supabase.from("profiles").select("family_id").eq("id", user.id).single(),
-        supabase.from("closet_items").select("*").eq("owner_id", user.id).eq("is_archived", false).order("updated_at", { ascending: false }),
-      ]);
-      setFamilyId((prof?.family_id as string) ?? null);
+      const { data: list } = await supabase
+        .from("closet_items").select("*").eq("owner_id", user.id)
+        .eq("is_archived", false).order("updated_at", { ascending: false });
       setItems((list as ClosetItem[]) ?? []);
     })();
   }, [supabase]);
@@ -50,7 +47,6 @@ export default function NewOutfitPage() {
       .from("outfits")
       .insert({
         owner_id: userId,
-        family_id: familyId,
         name: name.trim() || null,
         occasion: occasion || null,
         photo_path: photoPath,

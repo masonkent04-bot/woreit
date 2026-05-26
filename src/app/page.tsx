@@ -7,14 +7,14 @@ export default async function Home() {
   const { data: { user } } = await supabase.auth.getUser();
 
   if (user) {
-    // Check if user has a family. If not, send to onboarding
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("family_id")
-      .eq("id", user.id)
+    // Households (not families) are now the gate to the app
+    const { data: membership } = await supabase
+      .from("household_members")
+      .select("household_id")
+      .eq("user_id", user.id)
       .maybeSingle();
 
-    if (!profile?.family_id) redirect("/onboarding");
+    if (!membership) redirect("/onboarding");
     redirect("/closet");
   }
 
@@ -36,11 +36,11 @@ export default async function Home() {
           </Link>
         </div>
         <ul className="text-sm text-muted text-left pt-6 space-y-2">
-          <li>• Snap photos of every item in your closet</li>
+          <li>• Snap front + back photos of every item</li>
+          <li>• Personal items stay with your household, shared items go to family</li>
           <li>• Tap items you wore today, calendar logs the rest</li>
           <li>• See &ldquo;never worn&rdquo; vs &ldquo;worn a lot&rdquo; at a glance</li>
           <li>• AI builds outfits from what you own</li>
-          <li>• Share your closet read-only with family</li>
         </ul>
       </div>
     </main>
