@@ -5,7 +5,7 @@ export type ItemScope = "personal" | "household";
 
 export type ItemCategory =
   | "top" | "bottom" | "dress" | "skirt" | "outerwear" | "shoes"
-  | "accessory" | "bag" | "jewelry" | "underwear" | "sleepwear"
+  | "hat" | "accessory" | "bag" | "jewelry" | "underwear" | "sleepwear"
   | "activewear" | "swimwear" | "other";
 
 export interface Household {
@@ -91,10 +91,10 @@ export interface Outfit {
 
 export const CATEGORY_LABELS: Record<ItemCategory, string> = {
   top: "Top", bottom: "Bottoms", dress: "Dress", skirt: "Skirt",
-  outerwear: "Outerwear", shoes: "Shoes", accessory: "Accessory",
-  bag: "Bag", jewelry: "Jewelry", underwear: "Underwear",
-  sleepwear: "Sleepwear", activewear: "Activewear",
-  swimwear: "Swimwear", other: "Other",
+  outerwear: "Outerwear", shoes: "Shoes", hat: "Hat",
+  accessory: "Accessory", bag: "Bag", jewelry: "Jewelry",
+  underwear: "Underwear", sleepwear: "Sleepwear",
+  activewear: "Activewear", swimwear: "Swimwear", other: "Other",
 };
 
 export const WEAR_STATUS_LABELS: Record<WearStatus, { label: string; tone: string }> = {

@@ -18,7 +18,7 @@ Extract the item's attributes and respond ONLY with a JSON object matching this 
 
 {
   "name": string (3-5 words, descriptive, e.g. "Navy chambray button-down"),
-  "category": one of "top" | "bottom" | "dress" | "skirt" | "outerwear" | "shoes" | "accessory" | "bag" | "jewelry" | "underwear" | "sleepwear" | "activewear" | "swimwear" | "other",
+  "category": one of "top" | "bottom" | "dress" | "skirt" | "outerwear" | "shoes" | "hat" | "accessory" | "bag" | "jewelry" | "underwear" | "sleepwear" | "activewear" | "swimwear" | "other",
   "subcategory": string or null (e.g. "blouse", "boyfriend jeans", "sneakers"),
   "color_primary": string (the dominant color, plain English, e.g. "burnt orange", "navy", "cream"),
   "color_secondary": string or null (only if there's a clear second color or pattern),
