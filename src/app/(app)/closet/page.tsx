@@ -3,6 +3,7 @@ import { Plus } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import ItemCard from "@/components/ItemCard";
 import ClosetSummary from "@/components/ClosetSummary";
+import UnderwornNudge from "@/components/UnderwornNudge";
 import EmptyState from "@/components/EmptyState";
 import ClosetFilters from "./ClosetFilters";
 import type { ClosetItem, ItemCategory, WearStatus } from "@/lib/types";
@@ -84,7 +85,12 @@ export default async function ClosetPage({
         </Link>
       </header>
 
-      {!hasFilters && <ClosetSummary items={list} />}
+      {!hasFilters && (
+        <>
+          <ClosetSummary items={list} />
+          <UnderwornNudge items={list} />
+        </>
+      )}
 
       <ClosetFilters params={sp} />
 

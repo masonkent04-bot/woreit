@@ -102,6 +102,14 @@ export default function SettingsPage() {
           <span className="text-sm font-medium">💭 Wishlist</span>
           <span className="text-xs text-muted">→</span>
         </Link>
+        <Link href="/trips" className="block p-4 flex items-center justify-between hover:bg-background/50">
+          <span className="text-sm font-medium">✈️ Trips</span>
+          <span className="text-xs text-muted">→</span>
+        </Link>
+        <Link href="/borrow" className="block p-4 flex items-center justify-between hover:bg-background/50">
+          <span className="text-sm font-medium">🔁 Borrowed items</span>
+          <span className="text-xs text-muted">→</span>
+        </Link>
       </div>
 
       <button

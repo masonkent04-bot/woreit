@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import type { ClosetItem } from "@/lib/types";
 import WearStatusBadge from "@/components/WearStatusBadge";
 import ItemActions from "./ItemActions";
+import BorrowActions from "./BorrowActions";
 
 export const dynamic = "force-dynamic";
 
@@ -117,7 +118,12 @@ export default async function ItemDetail({
 
       {item.notes && <p className="text-sm text-muted whitespace-pre-wrap">{item.notes}</p>}
 
-      {isOwner && <ItemActions itemId={item.id} />}
+      {isOwner && (
+        <>
+          <BorrowActions itemId={item.id} />
+          <ItemActions itemId={item.id} />
+        </>
+      )}
     </div>
   );
 }

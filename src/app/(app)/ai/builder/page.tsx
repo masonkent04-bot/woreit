@@ -20,6 +20,7 @@ export default function OutfitBuilderPage() {
   const [itemsById, setItemsById] = useState<Map<string, ClosetItem>>(new Map());
   const [occasion, setOccasion] = useState<string>("casual");
   const [weather, setWeather] = useState<string>("");
+  const [loadingWeather, setLoadingWeather] = useState(false);
   const [suggestions, setSuggestions] = useState<AISuggestion[]>([]);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -42,6 +43,33 @@ export default function OutfitBuilderPage() {
       setHasItems(items.length > 0);
     })();
   }, [supabase]);
+
+  async function fetchWeather() {
+    if (!navigator.geolocation) {
+      setErr("Geolocation not supported in this browser");
+      return;
+    }
+    setLoadingWeather(true);
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        try {
+          const res = await fetch(`/api/weather?lat=${pos.coords.latitude}&lng=${pos.coords.longitude}`);
+          const j = await res.json();
+          if (res.ok && j.summary) setWeather(j.summary);
+          else setErr(j.error || "Couldn't get weather");
+        } catch (e) {
+          setErr((e as Error).message);
+        } finally {
+          setLoadingWeather(false);
+        }
+      },
+      (e) => {
+        setErr(e.message);
+        setLoadingWeather(false);
+      },
+      { timeout: 10000 }
+    );
+  }
 
   async function build() {
     setLoading(true);
@@ -111,7 +139,17 @@ export default function OutfitBuilderPage() {
           ))}
         </div>
 
-        <label className="text-xs uppercase tracking-wide text-muted block pt-2">Weather (optional)</label>
+        <div className="pt-2 flex items-center justify-between">
+          <label className="text-xs uppercase tracking-wide text-muted">Weather (optional)</label>
+          <button
+            type="button"
+            onClick={fetchWeather}
+            disabled={loadingWeather}
+            className="text-xs underline text-muted disabled:opacity-50"
+          >
+            {loadingWeather ? "Locating…" : "Use my location"}
+          </button>
+        </div>
         <div className="relative">
           <Cloud size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-muted" />
           <input
